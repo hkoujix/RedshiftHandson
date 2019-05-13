@@ -1,0 +1,242 @@
+﻿# File          : redshift-lab.yml
+# Purpose       : To create Amazon Redshift resources.
+# Author        : Takeshi Nakatani (AWS)
+# Last Updated  : 2018-10-5
+#
+# -- Note --
+# This template is intended for demo/lab user.
+# Don't put non-demo data as the cluster become publicly accessible.
+#
+# Run this template after vpc.yml has run.
+#
+
+AWSTemplateFormatVersion: 2010-09-09
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Common Parameters
+        Parameters:
+          - EnvType
+          - ProjectName
+          - CommonPassword
+      - Label:
+          default: Redshift
+        Parameters:
+          - ClusterType
+          - NumberOfNodes
+          - NodeType
+          - DatabaseName
+          - MasterUserName
+    ParameterLabels:
+      EnvType:
+        default: Environment Type
+      ProjectName:
+        default: Project Name
+      CommonPassword:
+        default: Common Password
+      ClusterType:
+        default: Type of Redshift Cluster
+      MumberOfNodes:
+        default: Number of Nodes
+      NodeType:
+        default: Node Type
+      DatabaseName:
+        default: DB Name
+      MasterUserName:
+        default: DB User Name
+
+Parameters:
+  EnvType:
+    Description: Environment type. (Prod, Dev)
+    Type: String
+    Default: Dev
+    AllowedValues:
+    - Prod
+    - Dev
+  ProjectName:
+    Description: Name of the project.
+    Type: String
+    Default: myproject
+    AllowedPattern: '([a-zA-Z0-9])+'
+  CommonPassword:
+    Description: Password for MAD, RS etc. Must be set.
+    Type: String
+    MinLength: 8
+    MaxLength: 64
+    AllowedPattern: "[a-zA-Z0-9#!.@+-=|^]*"
+    NoEcho: true
+  ClusterType:
+    Description: Type of the Redshift cluster.
+    Type: String
+    Default: single-node
+    AllowedValues:
+    - single-node
+    - multi-node
+  NumberOfNodes:
+    Description: Number of compute nodes in the cluster. For multi-node clusters,
+      the NumberOfNodes parameter must be greater than 1.
+    Type: Number
+    Default: '1'
+  NodeType:
+    Description: Type of node to be provisioned.
+    Type: String
+    Default: ds2.xlarge
+    AllowedValues:
+    - ds2.xlarge
+    - ds2.8xlarge
+    - dc2.large
+    - dc2.8xlarge
+    - dc1.large
+    - dc1.8xlarge
+  DatabaseName:
+    Description: Name of the first database to be created when the cluster is created.
+    Type: String
+    Default: mydb
+    AllowedPattern: ([a-z]|[0-9])+
+  MasterUserName:
+    Description: User name that is associated with the master user account for the
+      Redshift cluster that is being created.
+    Type: String
+    Default: awsuser
+    AllowedPattern: ([a-z]|[0-9])+
+    
+Conditions:
+  ProdEnv: !Equals [!Ref EnvType, Prod]
+  DevEnv: !Equals [!Ref EnvType, Dev]
+  IsMultiNodeCluster: !Equals 
+    - !Ref ClusterType
+    - multi-node
+
+Resources:
+  RedshiftClusterSubnetGroup:
+    Type: 'AWS::Redshift::ClusterSubnetGroup'
+    Properties:
+      Description: Public subnet group for the Redshift cluster.
+      SubnetIds:
+          - { "Fn::ImportValue": !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "publicsubnet1id"]] }
+          - { "Fn::ImportValue": !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "publicsubnet2id"]] }      
+  RedshiftClusterParameterGroup:
+    Type: 'AWS::Redshift::ClusterParameterGroup'
+    Properties:
+      Description: Cluster parameter group for the Redshift cluster.
+      ParameterGroupFamily: redshift-1.0
+      Parameters:
+        - ParameterName: enable_user_activity_logging
+          ParameterValue: 'true'
+  RedshiftRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - redshift.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: RedshiftandSpectrumCustomizedPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'athena:*'
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - 'glue:CreateDatabase'
+                  - 'glue:DeleteDatabase'
+                  - 'glue:GetDatabase'
+                  - 'glue:GetDatabases'
+                  - 'glue:UpdateDatabase'
+                  - 'glue:CreateTable'
+                  - 'glue:DeleteTable'
+                  - 'glue:BatchDeleteTable'
+                  - 'glue:UpdateTable'
+                  - 'glue:GetTable'
+                  - 'glue:GetTables'
+                  - 'glue:BatchCreatePartition'
+                  - 'glue:CreatePartition'
+                  - 'glue:DeletePartition'
+                  - 'glue:BatchDeletePartition'
+                  - 'glue:UpdatePartition'
+                  - 'glue:GetPartition'
+                  - 'glue:GetPartitions'
+                  - 'glue:BatchGetPartition'
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:ListMultipartUploadParts'
+                  - 's3:AbortMultipartUpload'
+                  - 's3:CreateBucket'
+                  - 's3:PutObject'
+                Resource:
+                  - 'arn:aws:s3:::aws-athena-query-results-*'
+              - Effect: Allow
+                Action:
+                  - 's3:Get*'
+                  - 's3:List*'
+                Resource:
+                  - '*'
+  RedshiftCluster:
+    Type: 'AWS::Redshift::Cluster'
+    DependsOn:
+      - RedshiftClusterSubnetGroup
+      - RedshiftClusterParameterGroup
+    Properties:
+      ClusterType: !Ref ClusterType
+      NumberOfNodes: !If 
+        - IsMultiNodeCluster
+        - !Ref NumberOfNodes
+        - !Ref 'AWS::NoValue'
+      NodeType: !Ref NodeType
+      DBName: !Ref DatabaseName
+      MasterUsername: !Ref MasterUserName
+      MasterUserPassword: !Ref CommonPassword
+      ClusterParameterGroupName: !Ref RedshiftClusterParameterGroup
+      VpcSecurityGroupIds:
+        - { "Fn::ImportValue": !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "securitygrouppublicid"]] }
+      ClusterSubnetGroupName: !Ref RedshiftClusterSubnetGroup
+      IamRoles:
+        - !GetAtt 
+          - RedshiftRole
+          - Arn
+      PubliclyAccessible: 'true'
+      
+Outputs:
+  RedshiftClusterName:
+    Description: Name of the Redshift cluster.
+    Value: !Ref RedshiftCluster
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "redshiftclustername"]]
+  RedshiftClusterEndpoint:
+    Description: Redshift cluster endpoint.
+    Value: !Join 
+      - ':'
+      - - !GetAtt 
+          - RedshiftCluster
+          - Endpoint.Address
+        - !GetAtt 
+          - RedshiftCluster
+          - Endpoint.Port
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "redshiftclusterendpoint"]]
+  RedshiftClusterRole:
+    Description: Amazon Resource Name (ARN) of the role for the Redshift cluster.
+    Value: !GetAtt 
+      - RedshiftRole
+      - Arn
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "redshiftrolearn"]]
+
+

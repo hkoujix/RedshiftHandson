@@ -1,0 +1,311 @@
+﻿# File          : vpc.yml
+# Purpose       : To create Amazon VPC resources.
+# Author        : Takeshi Nakatani (AWS)
+# Last Updated  : 2018-10-5
+#
+# -- Note --
+# Run this template first of all.
+# Then, run other dependant templates using cross-stack-referene.
+#
+
+AWSTemplateFormatVersion: 2010-09-09
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Common Parameters
+        Parameters:
+          - EnvType
+          - ProjectName
+      - Label:
+          default: VPC Configuration
+        Parameters:
+          - VPCName
+          - VPCCidr
+          - PublicSubnetCidr1
+          - PublicSubnetCidr2
+          - PrivateSubnetCidr1
+          - PrivateSubnetCidr2
+    ParameterLabels:
+      EnvType:
+        default: Environment Type
+      ProjectName:
+        default: Project Name
+      VPCName:
+        default: VPC Name
+      VPCCidr:
+        default: VPC CIDR Range
+      PublicSubnetCidr1:
+        default: Public Subet1 CIDR Range
+      PublicSubnetCidr2:
+        default: Public Subet2 CIDR Range
+      PrivateSubnetCidr1:
+        default: Private Subet1 CIDR Range
+      PrivateSubnetCidr2:
+        default: Private Subet2 CIDR Range
+
+Parameters:
+  EnvType:
+    Description: Environment type. (Prod, Dev)
+    Type: String
+    Default: Dev
+    AllowedValues:
+    - Prod
+    - Dev
+  ProjectName:
+    Description: Name of the project.
+    Type: String
+    Default: myproject
+    AllowedPattern: '([a-zA-Z0-9])+'
+  VPCName:
+    Description: Name of the VPC.
+    Type: String
+    Default: myvpc
+    AllowedPattern: '([a-zA-Z0-9])+'
+  VPCCidr:
+    Description: CIDR block for the VPC.
+    Type: String
+    Default: 172.16.0.0/16
+    AllowedPattern: '[a-zA-Z0-9]+\..+'
+  PublicSubnetCidr1:
+    Description: CIDR block for Public Subnet 1.
+    Type: String
+    Default: 172.16.40.0/24
+    AllowedPattern: '[a-zA-Z0-9]+\..+'
+  PublicSubnetCidr2:
+    Description: CIDR block for Public Subnet 2.
+    Type: String
+    Default: 172.16.41.0/24
+    AllowedPattern: '[a-zA-Z0-9]+\..+'
+  PrivateSubnetCidr1:
+    Description: CIDR block for Private Subnet 1.
+    Type: String
+    Default: 172.16.50.0/24
+    AllowedPattern: '[a-zA-Z0-9]+\..+'
+  PrivateSubnetCidr2:
+    Description: CIDR block for Private Subnet 2.
+    Type: String
+    Default: 172.16.51.0/24
+    AllowedPattern: '[a-zA-Z0-9]+\..+'  
+
+Conditions:
+  ProdEnv: !Equals [!Ref EnvType, Prod]
+  DevEnv: !Equals [!Ref EnvType, Dev]
+
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref VPCCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Ref VPCName
+  IGW:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - ''
+            - - !Ref VPCName
+              - '-IGW'
+  VPCIGWAttachement:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      InternetGatewayId: !Ref IGW
+      VpcId: !Ref VPC
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnetCidr1
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1
+  PublicSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnetCidr2
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2
+      MapPublicIpOnLaunch: true
+  PublicSubnetRT:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: PublicSubnetRT
+  PublicSubnetRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PublicSubnetRT
+      GatewayId: !Ref IGW
+      DestinationCidrBlock: 0.0.0.0/0
+  PublicSubnetRTAssociation1:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PublicSubnetRT
+      SubnetId: !Ref PublicSubnet1
+  PublicSubnetRTAssociation2:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PublicSubnetRT
+      SubnetId: !Ref PublicSubnet2
+  SecurityGroupPublic:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Security group for public subnet.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5439
+          ToPort: 5439
+          CidrIp: 0.0.0.0/0
+  NGW:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId: !GetAtt 
+        - EIP
+        - AllocationId
+      SubnetId: !Ref PrivateSubnet1
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - ''
+            - - !Ref VPCName
+              - '-NGW'
+  EIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+  PrivateSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnetCidr1
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet1
+  PrivateSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnetCidr2
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet2
+      MapPublicIpOnLaunch: false
+  PrivateSubnetRT:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: PrivateSubnetRT
+  PrivateSubnetRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRT
+      NatGatewayId: !Ref NGW
+      DestinationCidrBlock: 0.0.0.0/0
+  PrivateSubnetRTAssociation1:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRT
+      SubnetId: !Ref PrivateSubnet1
+  PrivateSubnetRTAssociation2:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRT
+      SubnetId: !Ref PrivateSubnet2
+  SecurityGroupPrivate:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Security group for private subnet.
+      SecurityGroupIngress:
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourceSecurityGroupId: !Ref SecurityGroupPublic
+  S3EndPoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      RouteTableIds:
+        - !Ref PublicSubnetRT
+        - !Ref PrivateSubnetRT
+      ServiceName: !Join
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .s3
+      VpcId: !Ref VPC
+
+Outputs:
+  VpcId:
+    Description: ID of the VPC.
+    Value: !Ref VPC
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "vpcid"]]
+  PublicSubnet1Id:
+    Description: ID of the public subnet1.
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "publicsubnet1id"]]
+  PublicSubnet2Id:
+    Description: ID of the public subnet2.
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "publicsubnet2id"]]
+  SecurityGroupPublicId:
+    Description: ID of the public security group.
+    Value: !Ref SecurityGroupPublic
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "securitygrouppublicid"]]
+  PrivateSubnet1Id:
+    Description: ID of the private subnet1.
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "privatesubnet1id"]]
+  PrivateSubnet2Id:
+    Description: ID of the private subnet2.
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "privatesubnet2id"]]
+  SecurityGroupPrivateId:
+    Description: ID of the private security group.
+    Value: !Ref SecurityGroupPrivate
+    Export:
+      Name: !Join [ "-", [ "Ref":"EnvType", "Ref":"ProjectName", "securitygroupprivateid"]]
