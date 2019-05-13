@@ -22,14 +22,14 @@
 ### 1-2-1. VPC
 * 以下の手順でCloudFormationスタックを作成します。
   * 「サービス」 → 「CloudFormation」 → 「スタック」→  「スタックの作成」ボタン→
-     *「前提条件 - テンプレートの準備」チェックボックス「テンプレートの準備完了」をチェック
-     *「テンプレートの指定」チェックボックス「Amazon S3 URL」をチェック
-         https://s3-ap-northeast-1.amazonaws.com/my-bucket-4-handson/Cfn/xsr-version/vpc.yml　を指定  
+     * 「前提条件 - テンプレートの準備」チェックボックス「テンプレートの準備完了」をチェック
+     * 「テンプレートの指定」チェックボックス「Amazon S3 URL」をチェック
+     *  https://s3-ap-northeast-1.amazonaws.com/kh-handsondata/cfn/vpc.yml を指定  
  *  「次へ」ボタン →以下を指定
 ```
-スタックの名前     : vpcPoC　
+スタックの名前    : vpcPoC　
 Environment Type : Dev
-Project Name    : myproject
+Project Name     : myproject
 ```
   * 「次へ」ボタン →　オブション入力画面はデフォルトのまま「次へ」ボタン→
   * 確認画面　→　「作成」ボタン
@@ -42,15 +42,15 @@ myvpc
 ### 1-2-2. Redshift
 * VPCの作成が完了したら、同様の手順でRedshiftクラスター用のCloudFormationスタックを作成します。
   * 「サービス」 → 「CloudFormation」 →「スタック」→ スタックの作成」ボタン
-     *「前提条件 - テンプレートの準備」チェックボックス「テンプレートの準備完了」をチェック
-     *「テンプレートの指定」チェックボックス「Amazon S3 URL」をチェック
-     　https://s3-ap-northeast-1.amazonaws.com/my-bucket-4-handson/Cfn/xsr-version/redshift.yml を指定
+     * 「前提条件 - テンプレートの準備」チェックボックス「テンプレートの準備完了」をチェック
+     * 「テンプレートの指定」チェックボックス「Amazon S3 URL」をチェック
+     * 　https://s3-ap-northeast-1.amazonaws.com/kh-handsondata/cfn/redshift.yml を指定
    *  「次へ」ボタン →以下を指定
 ```
-スタックの名前     : redshiftPoC　
-Env Type        : Dev
-Project Name    : myproject
-Common Password : xxxxxx (8文字以上、半角英数字大文字小文字いずれも１文字以上含む)を入力　→
+スタックの名前    : redshiftPoC　
+Env Type         : Dev
+Project Name     : myproject
+Common Password  : xxxxxx (8文字以上、半角英数字大文字小文字いずれも１文字以上含む)を入力　→
 ```
   * 「次へ」ボタン →　オブション入力画面はデフォルトのまま「次へ」ボタン　→
   *  確認画面の最下部の
@@ -80,15 +80,15 @@ https://www.dbvis.com/download/10.0
 * PC上にインストールされている、DbVisualizerを起動します。
 * 接続情報を以下の通り入力します。
 ```
- Name			: （任意）
- Setting Format	: Server
- Database Type	: Auto-Detect(Redshift)
- Driver			: Redshift
- Database Server: （クラスターエンドポイントのURL。ポートを除く）
- DB Port		: 5439
- Database		: mydb
- Database User ID	: awsuser
- Database Password	: （上記で入力したパスワード）
+ Name               : （任意）
+ Setting Format     : Server
+ Database Type      : Auto-Detect(Redshift)
+ Driver             : Redshift
+ Database Server    : （クラスターエンドポイントのURL。ポートを除く）
+ DB Port            : 5439
+ Database           : mydb
+ Database User ID   : awsuser
+ Database Password  : （上記で入力したパスワード）
 ```
 * Redshiftクラスターのエンドポイント名は、クラスター詳細情報（2-1.）からコピペして下さい（ポート番号はペースト後、Backspaceで削除して下さい）。
 
