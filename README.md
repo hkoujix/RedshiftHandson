@@ -668,7 +668,7 @@ select * from svv_external_schemas;
 ```
 外部テーブルが正常に作成されたことを確認します。
 ```
-select * from svv_external_schemas;
+select * from svv_external_tables;
 ```
 
 ## 4.2 Spectrumを使ってみる
